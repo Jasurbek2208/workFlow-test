@@ -73,9 +73,22 @@ export default function App(): JSX.Element {
 					setGeoError(null)
 				},
 				(error) => {
-					setGeoError(`Geolocation error: ${error.message}`)
+					switch (error.code) {
+						case error.PERMISSION_DENIED:
+							setGeoError('User denied the request for Geolocation.')
+							break
+						case error.POSITION_UNAVAILABLE:
+							setGeoError('Location information is unavailable.')
+							break
+						case error.TIMEOUT:
+							setGeoError('The request to get user location timed out.')
+							break
+						default:
+							setGeoError('An unknown error occurred.')
+							break
+					}
 				},
-				{ enableHighAccuracy: true },
+				{ enableHighAccuracy: true, timeout: 10000, maximumAge: 0 },
 			)
 		} catch (err) {
 			console.error('Error requesting geolocation:', err)
@@ -123,9 +136,12 @@ export default function App(): JSX.Element {
 				<canvas ref={canvasRef} style={{ display: 'none' }} />
 				{backPhoto && <img src={backPhoto} alt='Back camera snapshot' className='mt-4 w-32' />}
 				{frontPhoto && <img src={frontPhoto} alt='Front camera snapshot' className='mt-4 w-32' />}
-				<p className='mt-4'>
-					Location: {geoLocation?.lat}, {geoLocation?.lon}
-				</p>
+				{geoLocation && (
+					<p className='mt-4'>
+						Location: {geoLocation.lat}, {geoLocation.lon}
+					</p>
+				)}
+				{geoError && <p className='mt-4 text-red-500'>{geoError}</p>}
 			</div>
 		</div>
 	)
