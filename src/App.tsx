@@ -83,7 +83,7 @@ export default function App(): JSX.Element {
 			<video ref={videoRef} autoPlay muted className='w-[100px] h-auto my-0 mx-auto'></video>
 
 			<div className='mt-8'>
-				<button type='button' onClick={captureSnapshot} className='w-full'>
+				<button type='button' onClick={handleCaptureSequence} className='w-full'>
 					Capture Snapshot
 				</button>
 				<canvas ref={canvasRef} style={{ display: 'none' }} />
