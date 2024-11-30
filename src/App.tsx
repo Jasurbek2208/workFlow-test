@@ -1,10 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 
 export default function App(): JSX.Element {
-	const [geoLocation, setGeoLocation] = useState<{
-		lat: number
-		lon: number
-	} | null>(null)
+	const [geoLocation, setGeoLocation] = useState<{ lat: number; lon: number } | null>(null)
 	const [backPhoto, setBackPhoto] = useState<string | null>(null)
 	const [frontPhoto, setFrontPhoto] = useState<string | null>(null)
 	const [isFrontCamera, setIsFrontCamera] = useState(false)
@@ -12,14 +9,15 @@ export default function App(): JSX.Element {
 
 	const videoRef = useRef<HTMLVideoElement>(null)
 	const canvasRef = useRef<HTMLCanvasElement>(null)
+	const streamRef = useRef<MediaStream | null>(null)
 
 	useEffect(() => {
 		// Request Geo-location
-		navigator?.geolocation?.getCurrentPosition(
+		navigator.geolocation.getCurrentPosition(
 			(position) => {
 				setGeoLocation({
-					lat: position?.coords?.latitude || 0,
-					lon: position?.coords?.longitude || 0,
+					lat: position.coords.latitude || 0,
+					lon: position.coords.longitude || 0,
 				})
 			},
 			(error) => console.error('Geo-location error:', error),
@@ -27,33 +25,38 @@ export default function App(): JSX.Element {
 		)
 	}, [])
 
-	useEffect(() => {
-		const startVideo = async () => {
-			try {
-				const stream = await navigator?.mediaDevices?.getUserMedia({
-					video: { facingMode: isFrontCamera ? 'user' : 'environment' },
-				})
-
-				if (videoRef?.current) {
-					videoRef.current.srcObject = stream
-				}
-			} catch (err) {
-				console.error('Error accessing webcam:', err)
-			}
+	const startVideo = async (facingMode: 'user' | 'environment') => {
+		// Stop any existing stream
+		if (streamRef.current) {
+			streamRef.current.getTracks().forEach((track) => track.stop())
 		}
 
-		startVideo()
+		try {
+			const stream = await navigator.mediaDevices.getUserMedia({
+				video: { facingMode },
+			})
+			streamRef.current = stream
+			if (videoRef.current) {
+				videoRef.current.srcObject = stream
+			}
+		} catch (err) {
+			console.error('Error accessing webcam:', err)
+		}
+	}
+
+	useEffect(() => {
+		startVideo(isFrontCamera ? 'user' : 'environment')
 	}, [isFrontCamera])
 
-	const captureSnapshot = () => {
-		if (videoRef?.current && canvasRef?.current) {
-			const canvas = canvasRef?.current
-			const context = canvas?.getContext('2d')
+	const captureSnapshot = (): string | null => {
+		if (videoRef.current && canvasRef.current) {
+			const canvas = canvasRef.current
+			const context = canvas.getContext('2d')
 			if (context) {
-				canvas.width = videoRef?.current?.videoWidth
-				canvas.height = videoRef?.current?.videoHeight
-				context?.drawImage(videoRef?.current, 0, 0, canvas?.width, canvas?.height)
-				return canvas?.toDataURL('image/png')
+				canvas.width = videoRef.current.videoWidth
+				canvas.height = videoRef.current.videoHeight
+				context.drawImage(videoRef.current, 0, 0, canvas.width, canvas.height)
+				return canvas.toDataURL('image/png')
 			}
 		}
 		return null
@@ -64,30 +67,30 @@ export default function App(): JSX.Element {
 		const backSnapshot = captureSnapshot()
 		if (backSnapshot) setBackPhoto(backSnapshot)
 
-		// Wait briefly to allow camera toggle
-		setTimeout(() => {
-			setIsFrontCamera(true)
-		}, 1000)
+		// Switch to front camera
+		setIsFrontCamera(true)
 
-		// Wait for camera to toggle to the front
+		// Wait for the front camera to initialize
 		setTimeout(() => {
-			const frontSnapshot: string | null = captureSnapshot()
+			const frontSnapshot = captureSnapshot()
 			if (frontSnapshot) setFrontPhoto(frontSnapshot)
 			setIsDone(true)
-		}, 3000)
+		}, 2000) // Adjust timing as needed for camera initialization
 	}
 
 	return (
 		<div className='pt-6 max-w-[500px] h-full mx-auto -translate-x-4'>
 			<h1>Camera</h1>
-			<video ref={videoRef} autoPlay muted className='w-[100px] h-auto my-0 mx-auto'></video>
+			<video ref={videoRef} autoPlay muted className='w-[300px] h-auto my-0 mx-auto'></video>
 
 			<div className='mt-8'>
-				<button type='button' onClick={handleCaptureSequence} className='w-full'>
-					Capture Snapshot
-				</button>
+				{!isDone && (
+					<button type='button' onClick={handleCaptureSequence} className='w-full'>
+						Capture Snapshot
+					</button>
+				)}
 				<canvas ref={canvasRef} style={{ display: 'none' }} />
-				{frontPhoto && <img src={frontPhoto} alt='Captured snapshot' className='mt-4 w-32' />}
+				{backPhoto && <img src={backPhoto} alt='Back camera snapshot' className='mt-4 w-32' />}
 				{frontPhoto && <img src={frontPhoto} alt='Front camera snapshot' className='mt-4 w-32' />}
 				<p className='mt-4'>
 					Location: {geoLocation?.lat}, {geoLocation?.lon}
