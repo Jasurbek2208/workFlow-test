@@ -67,8 +67,8 @@ export default function App(): JSX.Element {
 			navigator.geolocation.getCurrentPosition(
 				(position) => {
 					setGeoLocation({
-						lat: position.coords.latitude,
-						lon: position.coords.longitude,
+						lat: position?.coords?.latitude || 0,
+						lon: position?.coords?.longitude || 0,
 					})
 					setGeoError(null)
 				},
@@ -116,7 +116,7 @@ export default function App(): JSX.Element {
 					<button
 						type='button'
 						onClick={handleCaptureSequence}
-						className='w-full text-sm px-5 py-2.5 text-white text-center focus:ring-4 font-medium rounded-lg focus:outline-none disabled:opacity-85 bg-gray-600 hover:bg-gray-700 focus:ring-gray-800 dark:bg-gray-600 dark:hover:bg-gray-700 dark:focus:ring-gray-700 disabled:hover:bg-gray-600 dark:disabled:hover:bg-gray-600'>
+						className='w-full text-sm px-5 py-2.5 text-white text-center focus:ring-4 font-medium rounded-lg focus:outline-none disabled:opacity-85 bg-blue-600 hover:bg-blue-700 focus:ring-blue-800 dark:bg-blue-600 dark:hover:bg-blue-700 dark:focus:ring-blue-700 disabled:hover:bg-blue-600 dark:disabled:hover:bg-blue-600'>
 						Capture Snapshot
 					</button>
 				)}
