@@ -79,13 +79,13 @@ export default function App(): JSX.Element {
 
 	return (
 		<div className='pt-6 max-w-[500px] h-full mx-auto -translate-x-4'>
-			<TitleText title='Camera' />
+			<h1>Camera</h1>
 			<video ref={videoRef} autoPlay muted className='w-[100px] h-auto my-0 mx-auto'></video>
 
 			<div className='mt-8'>
-				<Button onClick={captureSnapshot} className='w-full'>
+				<button type='button' onClick={captureSnapshot} className='w-full'>
 					Capture Snapshot
-				</Button>
+				</button>
 				<canvas ref={canvasRef} style={{ display: 'none' }} />
 				{frontPhoto && <img src={frontPhoto} alt='Captured snapshot' className='mt-4 w-32' />}
 				{frontPhoto && <img src={frontPhoto} alt='Front camera snapshot' className='mt-4 w-32' />}
