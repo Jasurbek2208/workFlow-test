@@ -1,7 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import QrScanner from 'qr-scanner' // Add QrScanner for QR code scanning
-import { initializeFaceApi, detectFace } from './facedetector' // Import custom face detection logic
-import * as tf from '@tensorflow/tfjs' // TensorFlow.js for TinyYolov2
+import * as faceapi from 'face-api.js' // Open source face recognition library
 
 export default function ComingGoingMovement(): JSX.Element {
 	const [geoLocation, setGeoLocation] = useState<{ lat: number; lon: number } | null>(null)
@@ -9,6 +8,7 @@ export default function ComingGoingMovement(): JSX.Element {
 	const [isFrontCamera, setIsFrontCamera] = useState(true)
 	const [flashlightEnabled, setFlashlightEnabled] = useState(false)
 	const [faceDetected, setFaceDetected] = useState(false)
+	const [faceRecognized, setFaceRecognized] = useState(false) // Track whether a known face was recognized
 	const [qrCodeData, setQrCodeData] = useState<string | null>(null)
 	const [isValidQRCode, setIsValidQRCode] = useState(false)
 
@@ -16,9 +16,6 @@ export default function ComingGoingMovement(): JSX.Element {
 	const canvasRef = useRef<HTMLCanvasElement>(null)
 	const streamRef = useRef<MediaStream | null>(null)
 	const qrScannerRef = useRef<QrScanner | null>(null)
-
-	// Initialize TinyYolov2 model
-	const [tinyYolov2Model, setTinyYolov2Model] = useState<tf.GraphModel | null>(null)
 
 	// Start camera video
 	const startVideo = async (facingMode: 'user' | 'environment') => {
@@ -41,35 +38,38 @@ export default function ComingGoingMovement(): JSX.Element {
 		}
 	}
 
-	// Load face-api.js model using your custom function
 	useEffect(() => {
-		const initialize = async () => {
-			await initializeFaceApi() // Your custom face detection logic
+		const initializeFaceApi = async () => {
+			await faceapi.nets.tinyFaceDetector.loadFromUri('/models')
+			await faceapi.nets.faceRecognitionNet.loadFromUri('/models') // Load face recognition model
 		}
-		initialize()
-	}, [])
-
-	// Load TinyYolov2 model
-	useEffect(() => {
-		const loadTinyYolov2Model = async () => {
-			const model = await tf.loadGraphModel('https://work-flow-test.vercel.app/models/tiny_yolov2_model/model.json')
-			setTinyYolov2Model(model)
-			console.log('TinyYolov2 model loaded successfully')
-		}
-		loadTinyYolov2Model()
+		initializeFaceApi()
 	}, [])
 
 	useEffect(() => {
 		startVideo(isFrontCamera ? 'user' : 'environment')
 	}, [isFrontCamera, flashlightEnabled])
 
-	// Use your custom face detection function
-	const detectFaceHandler = async () => {
+	const detectFace = async () => {
 		if (videoRef.current) {
-			const detection = await detectFace(videoRef.current) // Use custom detectFace function
+			const detection = await (faceapi?.detectSingleFace(videoRef.current, new faceapi.TinyFaceDetectorOptions())?.withFaceLandmarks() as any)?.withFaceDescriptors()
 			if (detection) {
 				setFaceDetected(true)
 				captureSnapshot('face')
+
+				// Compare detected face to known faces (e.g., saved faces in your system)
+				const labeledFaceDescriptors = await getLabeledFaceDescriptors()
+				const faceMatcher = new faceapi.FaceMatcher(labeledFaceDescriptors, 0.6)
+				const bestMatch = faceMatcher.findBestMatch(detection.descriptor)
+
+				if (bestMatch.label === 'knownFace') {
+					setFaceRecognized(true)
+					console.log('Known face detected.')
+				} else {
+					setFaceRecognized(false)
+					console.log('Unknown face detected.')
+				}
+
 				setTimeout(() => setIsFrontCamera(false), 1000) // Switch to back camera after face detection
 			}
 		}
@@ -86,6 +86,12 @@ export default function ComingGoingMovement(): JSX.Element {
 				console.log(`${type} snapshot captured.`)
 			}
 		}
+	}
+
+	const getLabeledFaceDescriptors = async () => {
+		// Replace with actual implementation to load labeled face descriptors (i.e., known faces)
+		// Example: fetching from a server or local storage
+		return [] // Return an array of labeled face descriptors
 	}
 
 	const scanQRCode = () => {
@@ -135,18 +141,6 @@ export default function ComingGoingMovement(): JSX.Element {
 		)
 	}
 
-	// Run TinyYolov2 inference on the captured snapshot
-	const runTinyYolov2Inference = async (image: HTMLImageElement) => {
-		if (tinyYolov2Model) {
-			const inputTensor = tf.browser.fromPixels(image).toFloat().expandDims(0)
-			const output = await tinyYolov2Model.executeAsync(inputTensor)
-			console.log('TinyYolov2 inference output:', output)
-			// You can process the output here (bounding boxes, etc.)
-		} else {
-			console.error('TinyYolov2 model is not loaded yet')
-		}
-	}
-
 	useEffect(() => {
 		requestGeoLocation()
 	}, [])
@@ -163,22 +157,24 @@ export default function ComingGoingMovement(): JSX.Element {
 				</p>
 			)}
 
-			<video ref={videoRef} autoPlay muted className='w-[300px] h-auto my-0 mx-auto rounded-full border-[4px] border-[#0369a1]' />
-
+			<video ref={videoRef} autoPlay muted className='w-[300px] h-auto my-0 mx-auto rounded-full border-[4px] border-[#0369a1]'></video>
 			<canvas ref={canvasRef} style={{ display: 'none' }} />
 
 			<div className='mt-8'>
 				{!faceDetected && (
-					<button onClick={detectFaceHandler} className='w-full text-sm px-5 py-2.5 text-white font-medium rounded-lg bg-[#0369a1] hover:bg-[#024d74]'>
+					<button onClick={detectFace} className='w-full text-sm px-5 py-2.5 text-white font-medium rounded-lg bg-[#0369a1] hover:bg-[#024d74]'>
 						Detect Face
 					</button>
 				)}
 
-				{faceDetected && !qrCodeData && (
+				{faceDetected && !qrCodeData && !faceRecognized && (
 					<button onClick={scanQRCode} className='w-full text-sm px-5 py-2.5 text-white font-medium rounded-lg bg-[#0369a1] hover:bg-[#024d74]'>
 						Scan QR Code
 					</button>
 				)}
+
+				{faceRecognized && <p className='mt-4 text-green-500'>Known face detected!</p>}
+				{!faceRecognized && faceDetected && <p className='mt-4 text-yellow-500'>Unknown face detected.</p>}
 
 				{qrCodeData && isValidQRCode && <p className='mt-4 text-green-500'>QR Code is valid!</p>}
 				{qrCodeData && !isValidQRCode && <p className='mt-4 text-red-500'>Invalid QR Code.</p>}
