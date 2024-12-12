@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import QrScanner from 'qr-scanner' // Add QrScanner for QR code scanning
-import * as faceapi from 'face-api.js' // Open source face recognition library
+import { initializeFaceApi, detectFace } from './facedetector' // Import custom face detection logic
+import * as tf from '@tensorflow/tfjs' // TensorFlow.js for TinyYolov2
 
 export default function ComingGoingMovement(): JSX.Element {
 	const [geoLocation, setGeoLocation] = useState<{ lat: number; lon: number } | null>(null)
@@ -16,6 +17,9 @@ export default function ComingGoingMovement(): JSX.Element {
 	const streamRef = useRef<MediaStream | null>(null)
 	const qrScannerRef = useRef<QrScanner | null>(null)
 
+	// Initialize TinyYolov2 model
+	const [tinyYolov2Model, setTinyYolov2Model] = useState<tf.GraphModel | null>(null)
+
 	// Start camera video
 	const startVideo = async (facingMode: 'user' | 'environment') => {
 		if (streamRef.current) {
@@ -26,7 +30,7 @@ export default function ComingGoingMovement(): JSX.Element {
 			const constraints: MediaStreamConstraints = {
 				video: { facingMode },
 			}
-			const stream = await navigator.mediaDevices.getUserMedia(constraints)
+			const stream = await navigator?.mediaDevices.getUserMedia(constraints)
 			streamRef.current = stream
 			if (videoRef.current) {
 				videoRef.current.srcObject = stream
@@ -37,20 +41,32 @@ export default function ComingGoingMovement(): JSX.Element {
 		}
 	}
 
+	// Load face-api.js model using your custom function
 	useEffect(() => {
-		const initializeFaceApi = async () => {
-			await faceapi.nets.tinyFaceDetector.loadFromUri('/models')
+		const initialize = async () => {
+			await initializeFaceApi() // Your custom face detection logic
 		}
-		initializeFaceApi()
+		initialize()
+	}, [])
+
+	// Load TinyYolov2 model
+	useEffect(() => {
+		const loadTinyYolov2Model = async () => {
+			const model = await tf.loadGraphModel('https://work-flow-test.vercel.app/models/tiny_yolov2_model/model.json')
+			setTinyYolov2Model(model)
+			console.log('TinyYolov2 model loaded successfully')
+		}
+		loadTinyYolov2Model()
 	}, [])
 
 	useEffect(() => {
 		startVideo(isFrontCamera ? 'user' : 'environment')
 	}, [isFrontCamera, flashlightEnabled])
 
-	const detectFace = async () => {
+	// Use your custom face detection function
+	const detectFaceHandler = async () => {
 		if (videoRef.current) {
-			const detection = await faceapi.detectSingleFace(videoRef.current, new faceapi.TinyFaceDetectorOptions())
+			const detection = await detectFace(videoRef.current) // Use custom detectFace function
 			if (detection) {
 				setFaceDetected(true)
 				captureSnapshot('face')
@@ -99,7 +115,7 @@ export default function ComingGoingMovement(): JSX.Element {
 			return
 		}
 
-		navigator.geolocation.getCurrentPosition(
+		navigator?.geolocation?.getCurrentPosition(
 			(position) => {
 				setGeoLocation({
 					lat: position.coords.latitude,
@@ -119,6 +135,18 @@ export default function ComingGoingMovement(): JSX.Element {
 		)
 	}
 
+	// Run TinyYolov2 inference on the captured snapshot
+	const runTinyYolov2Inference = async (image: HTMLImageElement) => {
+		if (tinyYolov2Model) {
+			const inputTensor = tf.browser.fromPixels(image).toFloat().expandDims(0)
+			const output = await tinyYolov2Model.executeAsync(inputTensor)
+			console.log('TinyYolov2 inference output:', output)
+			// You can process the output here (bounding boxes, etc.)
+		} else {
+			console.error('TinyYolov2 model is not loaded yet')
+		}
+	}
+
 	useEffect(() => {
 		requestGeoLocation()
 	}, [])
@@ -131,16 +159,17 @@ export default function ComingGoingMovement(): JSX.Element {
 
 			{geoLocation && (
 				<p className='mt-4'>
-					Location: {geoLocation.lat}, {geoLocation.lon}
+					Location: {geoLocation?.lat}, {geoLocation?.lon}
 				</p>
 			)}
 
-			<video ref={videoRef} autoPlay muted className='w-[300px] h-auto my-0 mx-auto rounded-full border-[4px] border-[#0369a1]'></video>
+			<video ref={videoRef} autoPlay muted className='w-[300px] h-auto my-0 mx-auto rounded-full border-[4px] border-[#0369a1]' />
+
 			<canvas ref={canvasRef} style={{ display: 'none' }} />
 
 			<div className='mt-8'>
 				{!faceDetected && (
-					<button onClick={detectFace} className='w-full text-sm px-5 py-2.5 text-white font-medium rounded-lg bg-[#0369a1] hover:bg-[#024d74]'>
+					<button onClick={detectFaceHandler} className='w-full text-sm px-5 py-2.5 text-white font-medium rounded-lg bg-[#0369a1] hover:bg-[#024d74]'>
 						Detect Face
 					</button>
 				)}
