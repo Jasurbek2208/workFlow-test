@@ -23,13 +23,14 @@ export default function ComingGoingMovement(): JSX.Element {
 		}
 
 		try {
-			const constraints: any = {
-				video: { facingMode, torch: flashlightEnabled ? true : false },
+			const constraints: MediaStreamConstraints = {
+				video: { facingMode },
 			}
 			const stream = await navigator.mediaDevices.getUserMedia(constraints)
 			streamRef.current = stream
 			if (videoRef.current) {
 				videoRef.current.srcObject = stream
+				videoRef.current.play()
 			}
 		} catch (err) {
 			console.error('Error accessing webcam:', err)
@@ -66,7 +67,6 @@ export default function ComingGoingMovement(): JSX.Element {
 				canvas.width = videoRef.current.videoWidth
 				canvas.height = videoRef.current.videoHeight
 				context.drawImage(videoRef.current, 0, 0, canvas.width, canvas.height)
-				const snapshot = canvas.toDataURL('image/png')
 				console.log(`${type} snapshot captured.`)
 			}
 		}
@@ -99,25 +99,24 @@ export default function ComingGoingMovement(): JSX.Element {
 			return
 		}
 
-		try {
-			navigator.geolocation.getCurrentPosition(
-				(position) => {
-					setGeoLocation({
-						lat: position.coords.latitude,
-						lon: position.coords.longitude,
-					})
-					setGeoError(null)
-				},
-				(error) => {
-					setGeoError('Error obtaining geolocation.')
-					console.error(error)
-				},
-				{ enableHighAccuracy: true, timeout: 10000, maximumAge: 0 },
-			)
-		} catch (err) {
-			console.error('Error requesting geolocation:', err)
-			setGeoError('Unexpected geolocation error.')
-		}
+		navigator.geolocation.getCurrentPosition(
+			(position) => {
+				setGeoLocation({
+					lat: position.coords.latitude,
+					lon: position.coords.longitude,
+				})
+				setGeoError(null)
+			},
+			(error: any) => {
+				const errorMessages = {
+					1: 'Permission denied. Please enable location services.',
+					2: 'Position unavailable. Please try again.',
+					3: 'Request timed out. Please retry.',
+				}
+				setGeoError((errorMessages as any)?.[error?.code] || 'Unknown geolocation error occurred.')
+			},
+			{ enableHighAccuracy: true, timeout: 10000, maximumAge: 0 },
+		)
 	}
 
 	useEffect(() => {
